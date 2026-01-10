@@ -96,6 +96,16 @@ docker compose exec -T wordpress wp --allow-root plugin delete hello 2>/dev/null
 docker compose exec -T wordpress wp --allow-root plugin delete akismet 2>/dev/null || true
 
 print_success "WordPress installed successfully!"
+
+# Seed content if available and requested
+SEEDS_CONFIG="$REPO_ROOT/seeds/pages.json"
+if [ -f "$SEEDS_CONFIG" ] && [ "${SEED_CONTENT:-auto}" != "false" ]; then
+    if [ "${SEED_CONTENT:-auto}" = "true" ] || [ "${SEED_CONTENT:-auto}" = "auto" ]; then
+        print_info "Seeding starter content..."
+        bash "$SCRIPT_DIR/seed-content.sh" --skip-existing
+    fi
+fi
+
 echo ""
 echo -e "  ${DIM}URL:      $WP_URL${NC}"
 echo -e "  ${DIM}Username: $WP_USER${NC}"

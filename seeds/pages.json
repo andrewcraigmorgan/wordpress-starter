@@ -1,0 +1,40 @@
+{
+  "pages": [
+    {
+      "title": "Home",
+      "slug": "home",
+      "template": "home.html",
+      "set_as_homepage": true
+    },
+    {
+      "title": "About",
+      "slug": "about",
+      "template": "about.html"
+    },
+    {
+      "title": "Features",
+      "slug": "features",
+      "template": null
+    },
+    {
+      "title": "Docs",
+      "slug": "docs",
+      "template": null
+    },
+    {
+      "title": "Pricing",
+      "slug": "pricing",
+      "template": null
+    },
+    {
+      "title": "Contact",
+      "slug": "contact",
+      "template": null
+    }
+  ],
+  "settings": {
+    "show_on_front": "page",
+    "blogname": "WordPress Starter",
+    "blogdescription": "A modern WordPress starter theme"
+  }
+}
