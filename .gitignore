@@ -1,0 +1,64 @@
+# Environment files
+.env
+
+# WordPress files
+wordpress/
+!wordpress/.gitkeep
+
+# Database backups
+backups/
+*.sql
+*.sql.gz
+
+# MySQL data
+mysql-init/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.bak
+
+# Node artifact files (from Bitbucket default)
+node_modules/
+dist/
+
+# Compiled files
+*.class
+*.py[cod]
+
+# Package files
+*.jar
+
+# Maven
+target/
+
+# Unit test reports
+TEST*.xml
+
+# Applications
+*.app
+*.exe
+*.war
+
+# Large media files
+*.mp4
+*.tiff
+*.avi
+*.flv
+*.mov
+*.wmv

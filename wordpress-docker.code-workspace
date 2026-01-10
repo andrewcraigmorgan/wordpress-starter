@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "wordpress/wp-content/themes/wordpress-chop"
+		},
+		{
+			"path": "wordpress/wp-content/themes/wordpress-chop-child"
+		}
+	],
+	"settings": {}
+}

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.0/phpunit.xsd"
+         bootstrap="bootstrap.php"
+         colors="true"
+         stopOnFailure="false"
+         failOnWarning="false"
+         failOnRisky="false">
+    <testsuites>
+        <testsuite name="WordPress Tests">
+            <directory>./unit</directory>
+        </testsuite>
+        <testsuite name="Integration Tests">
+            <directory>./integration</directory>
+        </testsuite>
+    </testsuites>
+
+    <php>
+        <env name="WP_TESTS_DB_NAME" value="wordpress_test"/>
+        <env name="WP_TESTS_DB_USER" value="wordpress"/>
+        <env name="WP_TESTS_DB_PASSWORD" value="wordpress"/>
+        <env name="WP_TESTS_DB_HOST" value="127.0.0.1"/>
+        <env name="WP_TESTS_TABLE_PREFIX" value="wptests_"/>
+        <env name="WP_TESTS_DOMAIN" value="example.org"/>
+        <env name="WP_TESTS_EMAIL" value="admin@example.org"/>
+        <env name="WP_TESTS_TITLE" value="Test Blog"/>
+        <env name="WP_PHP_BINARY" value="php"/>
+    </php>
+
+    <coverage>
+        <report>
+            <html outputDirectory="coverage-report"/>
+            <text outputFile="php://stdout" showUncoveredFiles="false"/>
+        </report>
+    </coverage>
+</phpunit>

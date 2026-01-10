@@ -1,0 +1,196 @@
+image: php:8.3-cli
+
+definitions:
+  services:
+    mysql:
+      image: mysql:8.0
+      variables:
+        MYSQL_DATABASE: wordpress_test
+        MYSQL_ROOT_PASSWORD: test_password
+        MYSQL_USER: wordpress
+        MYSQL_PASSWORD: wordpress
+
+  caches:
+    composer: ~/.composer/cache
+
+  steps:
+    - step: &install-dependencies
+        name: Install Dependencies
+        caches:
+          - composer
+        script:
+          - apt-get update && apt-get install -y git zip unzip libzip-dev libpng-dev libjpeg-dev libfreetype6-dev
+          - docker-php-ext-configure gd --with-freetype --with-jpeg
+          - docker-php-ext-install -j$(nproc) gd mysqli pdo pdo_mysql zip
+          - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          - |
+            if [ -f "wordpress/wp-content/themes/*/composer.json" ] || [ -f "wordpress/wp-content/plugins/*/composer.json" ]; then
+              echo "Installing Composer dependencies..."
+              find wordpress/wp-content/themes -name composer.json -execdir composer install --no-interaction --prefer-dist --optimize-autoloader \;
+              find wordpress/wp-content/plugins -name composer.json -execdir composer install --no-interaction --prefer-dist --optimize-autoloader \;
+            fi
+        artifacts:
+          - wordpress/**
+          - vendor/**
+
+    - step: &code-quality
+        name: Code Quality Checks
+        script:
+          - echo "Running PHP Lint..."
+          - find wordpress/wp-content/themes -name "*.php" -print0 | xargs -0 -n1 php -l
+          - find wordpress/wp-content/plugins -name "*.php" -print0 | xargs -0 -n1 php -l || true
+          - echo "Code quality checks completed"
+
+    - step: &security-scan
+        name: Security Scan
+        script:
+          - echo "Installing security scanning tools..."
+          - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          - |
+            if [ -f "wordpress/wp-content/composer.json" ]; then
+              cd wordpress/wp-content
+              composer require --dev enlightn/security-checker --no-interaction || true
+              if [ -f "vendor/bin/security-checker" ]; then
+                vendor/bin/security-checker security:check composer.lock || true
+              fi
+              cd ../..
+            fi
+          - echo "Checking for common WordPress security issues..."
+          - |
+            # Check for debug mode in wp-config.php
+            if grep -q "define.*WP_DEBUG.*true" wordpress/wp-config.php 2>/dev/null; then
+              echo "WARNING: WP_DEBUG is enabled - should be false in production"
+            fi
+          - echo "Security scan completed"
+
+    - step: &phpunit-tests
+        name: PHPUnit Tests
+        services:
+          - mysql
+        script:
+          - echo "Setting up test environment..."
+          - apt-get update && apt-get install -y git zip unzip libzip-dev libpng-dev libjpeg-dev libfreetype6-dev mysql-client
+          - docker-php-ext-configure gd --with-freetype --with-jpeg
+          - docker-php-ext-install -j$(nproc) gd mysqli pdo pdo_mysql zip
+          - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          - |
+            # Wait for MySQL to be ready
+            echo "Waiting for MySQL..."
+            sleep 10
+            until mysql -h127.0.0.1 -uwordpress -pwordpress -e "SELECT 1" &>/dev/null; do
+              echo "MySQL is unavailable - sleeping"
+              sleep 2
+            done
+            echo "MySQL is up"
+          - |
+            # Run PHPUnit tests if they exist
+            if [ -f "tests/phpunit.xml" ] || [ -f "phpunit.xml" ]; then
+              echo "Running PHPUnit tests..."
+              if [ ! -f "vendor/bin/phpunit" ]; then
+                composer require --dev phpunit/phpunit --no-interaction
+              fi
+              vendor/bin/phpunit --configuration tests/phpunit.xml || vendor/bin/phpunit
+            else
+              echo "No PHPUnit tests found - skipping"
+            fi
+
+    - step: &wordpress-standards
+        name: WordPress Coding Standards
+        script:
+          - echo "Installing WordPress Coding Standards..."
+          - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+          - |
+            if [ ! -d "vendor" ]; then
+              mkdir -p vendor
+            fi
+          - |
+            # Install PHPCS and WordPress standards if not already present
+            if [ ! -f "vendor/bin/phpcs" ]; then
+              composer require --dev squizlabs/php_codesniffer wp-coding-standards/wpcs --no-interaction || true
+            fi
+          - |
+            # Run PHPCS on custom themes and plugins if installed
+            if [ -f "vendor/bin/phpcs" ]; then
+              echo "Running WordPress Coding Standards checks..."
+              vendor/bin/phpcs --config-set installed_paths vendor/wp-coding-standards/wpcs || true
+              # Check custom themes (skip vendor directories)
+              find wordpress/wp-content/themes -name "*.php" -not -path "*/vendor/*" | head -20 | xargs vendor/bin/phpcs --standard=WordPress --warning-severity=8 --extensions=php || true
+              # Check custom plugins (skip vendor directories)
+              find wordpress/wp-content/plugins -name "*.php" -not -path "*/vendor/*" | head -20 | xargs vendor/bin/phpcs --standard=WordPress --warning-severity=8 --extensions=php || true
+              echo "Coding standards check completed"
+            else
+              echo "PHPCS not available - skipping WordPress coding standards"
+            fi
+
+    - step: &deploy-production
+        name: Deploy to Production
+        deployment: production
+        script:
+          - echo "Deploying to production server..."
+          - apt-get update && apt-get install -y rsync openssh-client
+          - mkdir -p ~/.ssh
+          - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          - chmod 600 ~/.ssh/id_rsa
+          - ssh-keyscan -H $PROD_SERVER_HOST >> ~/.ssh/known_hosts || true
+          - |
+            echo "Creating backup on production server..."
+            ssh -i ~/.ssh/id_rsa $PROD_SSH_USER@$PROD_SERVER_HOST "cd $PROD_PATH && tar -czf /tmp/wp_backup_$(date +%Y%m%d_%H%M%S).tar.gz --exclude='wp-content/cache/*' ." || echo "Backup failed, continuing..."
+          - |
+            echo "Syncing files to production..."
+            rsync -avz --delete \
+              --exclude='.git' \
+              --exclude='*.log' \
+              --exclude='wp-config.php' \
+              --exclude='.env' \
+              --exclude='wp-content/cache/*' \
+              --exclude='bitbucket-pipelines.yml' \
+              --exclude='tests/' \
+              --exclude='vendor/' \
+              -e "ssh -i ~/.ssh/id_rsa" \
+              wordpress/ $PROD_SSH_USER@$PROD_SERVER_HOST:$PROD_PATH/
+          - |
+            echo "Setting file permissions..."
+            ssh -i ~/.ssh/id_rsa $PROD_SSH_USER@$PROD_SERVER_HOST "cd $PROD_PATH && find . -type f -exec chmod 644 {} \; && find . -type d -exec chmod 755 {} \;"
+          - |
+            echo "Clearing caches..."
+            ssh -i ~/.ssh/id_rsa $PROD_SSH_USER@$PROD_SERVER_HOST "cd $PROD_PATH && wp cache flush 2>/dev/null || touch index.php"
+          - echo "Deployment completed successfully!"
+
+pipelines:
+  default:
+    - step: *install-dependencies
+    - parallel:
+      - step: *code-quality
+      - step: *security-scan
+      - step: *wordpress-standards
+    - step: *phpunit-tests
+
+  branches:
+    main:
+      - step: *install-dependencies
+      - parallel:
+        - step: *code-quality
+        - step: *security-scan
+        - step: *wordpress-standards
+      - step: *phpunit-tests
+      - step: *deploy-production
+
+    staging:
+      - step: *install-dependencies
+      - parallel:
+        - step: *code-quality
+        - step: *security-scan
+      - step: *phpunit-tests
+
+  pull-requests:
+    '**':
+      - step: *install-dependencies
+      - parallel:
+        - step: *code-quality
+        - step: *security-scan
+        - step: *wordpress-standards
+      - step: *phpunit-tests
+
+  custom:
+    deploy-only:
+      - step: *deploy-production
