@@ -3,12 +3,12 @@
 # Shared utility functions
 #
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/colors.sh"
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$LIB_DIR/colors.sh"
 
 # Get the repository root directory
 get_repo_root() {
-    echo "$(cd "$SCRIPT_DIR/../.." && pwd)"
+    echo "$(cd "$LIB_DIR/../.." && pwd)"
 }
 
 # Load environment variables from .env file
