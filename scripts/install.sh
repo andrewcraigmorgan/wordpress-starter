@@ -82,15 +82,17 @@ run_fresh_install() {
     echo ""
     echo -e "  ${BOLD}1)${NC} Vanilla - Default WordPress theme (Twenty Twenty-Five)"
     echo -e "  ${BOLD}2)${NC} Custom Theme - Install from Git repository"
-    echo -e "  ${BOLD}3)${NC} Starter Theme - Use wordpress-chop starter theme"
+    echo -e "  ${BOLD}3)${NC} Starter Theme (Plain) - Parent + plain child theme"
+    echo -e "  ${BOLD}4)${NC} Starter Theme (SPA) - Parent + Vue/Vite child theme"
     echo ""
 
     while true; do
-        read -p "$(echo -e "${CYAN}→${NC} Select theme option [1-3]: ")" theme_choice
+        read -p "$(echo -e "${CYAN}→${NC} Select theme option [1-4]: ")" theme_choice
         case $theme_choice in
             1) THEME_TYPE="vanilla"; break ;;
             2) THEME_TYPE="custom"; break ;;
-            3) THEME_TYPE="starter"; break ;;
+            3) THEME_TYPE="starter-plain"; break ;;
+            4) THEME_TYPE="starter-spa"; break ;;
             *) print_error "Invalid choice" ;;
         esac
     done
@@ -111,9 +113,14 @@ run_fresh_install() {
         fi
     fi
 
-    if [ "$THEME_TYPE" = "starter" ]; then
-        THEME_REPO="https://github.com/andrewcraigmorgan/wordpress-starter-theme.git"
-        # Could also prompt for parent if needed
+    if [ "$THEME_TYPE" = "starter-plain" ]; then
+        PARENT_REPO="https://github.com/andrewcraigmorgan/wordpress-starter-theme.git"
+        THEME_REPO="https://github.com/andrewcraigmorgan/wordpress-starter-theme-child.git"
+    fi
+
+    if [ "$THEME_TYPE" = "starter-spa" ]; then
+        PARENT_REPO="https://github.com/andrewcraigmorgan/wordpress-starter-theme.git"
+        THEME_REPO="https://github.com/andrewcraigmorgan/wordpress-starter-theme-spa.git"
     fi
 
     # Start containers
@@ -132,8 +139,12 @@ run_fresh_install() {
 
     # Install theme
     print_step "4/4" "Setting up theme..."
-    if [ "$THEME_TYPE" = "custom" ] || [ "$THEME_TYPE" = "starter" ]; then
+    if [ "$THEME_TYPE" = "custom" ] || [ "$THEME_TYPE" = "starter-plain" ] || [ "$THEME_TYPE" = "starter-spa" ]; then
         THEME_REPO="$THEME_REPO" PARENT_REPO="${PARENT_REPO:-}" bash "$SCRIPT_DIR/vanilla/install-theme.sh"
+
+        # Remove default Twenty* themes (only when using custom themes)
+        print_info "Removing default themes..."
+        docker compose exec -T wordpress bash -c 'rm -rf /var/www/html/wp-content/themes/twenty*' 2>/dev/null || true
     else
         print_info "Using default WordPress theme"
     fi

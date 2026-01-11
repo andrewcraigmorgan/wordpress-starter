@@ -22,9 +22,9 @@
       "template": null
     },
     {
-      "title": "Pricing",
-      "slug": "pricing",
-      "template": null
+      "title": "Style Guide",
+      "slug": "style-guide",
+      "template": "style-guide.html"
     },
     {
       "title": "Contact",
